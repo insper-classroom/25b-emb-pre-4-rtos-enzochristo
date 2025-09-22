@@ -212,7 +212,7 @@ void task_main(void) {
     while(1) { 
 
         if(xSemaphoreTake(xSemaphore, pdMS_TO_TICKS(100))) {
-            // faz alguma coisa
+            // faz alguma coisa 
         } else { 
             // cai aqui se o semáforo não for liberado em 100 ms!
         }
