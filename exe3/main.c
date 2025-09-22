@@ -25,6 +25,7 @@ void led_1_task(void *p) {
             // nesse caso, ele so vai verificar se a fila esta com o retorno esperado. Se nao, ele simplesmente pula, eh basicamente um if ocm uma cond verdadeira
             // se fosse com tempo, seria ao mesmo tempo um if com condicao verdade e um timer, se a condicao nao obter ele vai esperar o tempo e se passar o tempo "alarme estourar", ele nao entra no if e pula o bloco.
             printf("%d\n", delay);
+            
         }
 
         if (delay > 0) {
