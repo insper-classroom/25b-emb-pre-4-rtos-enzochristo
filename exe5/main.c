@@ -33,7 +33,7 @@ void btn_callback(uint gpio, uint32_t events) {
         if (gpio == BTN_PIN_R){
             // printf("passei");
             flag_r = 1;
-            xQueueSendFromISR(xQueueBtn, &flag_r, 0);
+            xQueueSendFromISR(xQueueBtn, &flag_r, 0);// USAR SOMENTE AQUI FROMISR!!!!!!!
 
         }
         else{
@@ -67,7 +67,7 @@ void btn_task(void* p) {
     int ligou_y = 0;
 
     while (true) {
-        if(xQueueReceiveFromISR(xQueueBtn, &flag,0  )){
+        if(xQueueReceive(xQueueBtn, &flag,pdMS_TO_TICKS(100))){ // usar o fromisr somente quando for DENTRO de um isr.!!!!!!!!!!!
             printf("flag:  %d", flag);
         }
         if(flag == 1){
