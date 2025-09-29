@@ -23,121 +23,135 @@ const int BTN_PIN_Y = 21;
 const int LED_PIN_R = 5;
 const int LED_PIN_Y = 10;
 
-QueueHandle_t xQueueBtn, xQueueBtn_y;
+QueueHandle_t xQueueBtn;
 SemaphoreHandle_t xSemaphoreLedR, xSemaphoreLedY;
 
-void btn_callback( uint gpio, uint32_t events){
-    if(events == 0x4){ // fall edge
+
+void btn_callback(uint gpio, uint32_t events) {
+    int static flag_y = 0, flag_r = 0;
+    if (events == 0x4) { // fall edge
         if (gpio == BTN_PIN_R){
-            xSemaphoreGiveFromISR(xSemaphoreLedR, 0); // nao tem como setar ele para false.
-            // assim que ele for taken, ele ja vai ser setado como false.
+            // printf("passei");
+            flag_r = 1;
+            xQueueSendFromISR(xQueueBtn, &flag_r, 0);
+
         }
-        else if (gpio == BTN_PIN_Y){
-            printf("entrei amarelo");
-            xSemaphoreGiveFromISR(xSemaphoreLedY, 0); // nao tem como setar ele para false.
+        else{
+            flag_y = 2;
+            xQueueSendFromISR(xQueueBtn, &flag_y, 0);
         }
     }
 }
 
-void btn_1_task(void* p) {
-    gpio_init(BTN_PIN_R);
-    gpio_set_dir(BTN_PIN_R, GPIO_IN);
-    gpio_pull_up(BTN_PIN_R);
-   
-    gpio_set_irq_enabled_with_callback(BTN_PIN_R, GPIO_IRQ_EDGE_FALL, true, &btn_callback);
 
-    int counter = 0;
 
-    while (true) {
-        if(xSemaphoreTake(xSemaphoreLedR, 100) == pdTRUE){
-            counter ++;
-        }
-        vTaskDelay(pdMS_TO_TICKS(200));
-        xQueueSend(xQueueBtn, &counter, 0);
-    }
-}
+void btn_task(void* p) {
 
-void btn_2_task(void *p){
+
     gpio_init(BTN_PIN_Y);
     gpio_set_dir(BTN_PIN_Y, GPIO_IN);
     gpio_pull_up(BTN_PIN_Y);
-    gpio_set_irq_enabled(BTN_PIN_Y, GPIO_IRQ_EDGE_FALL, true); // referencia para chamar o callback e usarmos o sinal.
-    gpio_set_irq_callback(btn_callback);
 
-    int counter = 0;
+    gpio_init(BTN_PIN_R);
+    gpio_set_dir(BTN_PIN_R, GPIO_IN);
+    gpio_pull_up(BTN_PIN_R);
+
+    // Define o callback E habilita a IRQ para o primeiro pino
+    gpio_set_irq_enabled_with_callback(BTN_PIN_R, GPIO_IRQ_EDGE_FALL, true, &btn_callback);
+
+    // Apenas habilita a IRQ para os pinos seguintes
+    gpio_set_irq_enabled(BTN_PIN_Y, GPIO_IRQ_EDGE_FALL, true);
+
+    int flag = 0;
+    int ligou_r = 0;
+    int ligou_y = 0;
 
     while (true) {
-        if(xSemaphoreTake(xSemaphoreLedY, 100) == pdTRUE){
-            counter ++;
+        if(xQueueReceiveFromISR(xQueueBtn, &flag,0  )){
+            printf("flag:  %d", flag);
         }
-        vTaskDelay(pdMS_TO_TICKS(200)); // tem que ter esse delay para que evite ma pressionamentos
-        xQueueSend(xQueueBtn_y, &counter, 0);
+        if(flag == 1){
+            ligou_r = !ligou_r;
+            flag = 0;
+        }
+
+        if (flag == 2){
+            ligou_y = !ligou_y;
+            flag = 0;
+        }
+
+        if(ligou_r){
+            xSemaphoreGive(xSemaphoreLedR);
+        }
+          
+        if(ligou_y){
+            xSemaphoreGive(xSemaphoreLedY);
+        }
+
+        if (ligou_r && ligou_y){
+            xSemaphoreGive(xSemaphoreLedY);
+            xSemaphoreGive(xSemaphoreLedR);
+        }
+    
     }
 }
 
 
-void led_1_task(void *p){
+void led_r_task(void *p){
+
     gpio_init(LED_PIN_R);
     gpio_set_dir(LED_PIN_R, GPIO_OUT);
 
-    int counter;
-    int delay = 100;
+    while(true){
 
-    while(true){  
-        if(xQueueReceive(xQueueBtn, &counter, 100)){
-            // printf("counter led vermelho : %d\n", counter);
+        if(xSemaphoreTake(xSemaphoreLedR, 100) == pdTRUE){ // vai receber 0 ou 1.
+          
+            gpio_put(LED_PIN_R,1);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(LED_PIN_R,0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            
         }
         
-        if (counter%2!=0){
-            gpio_put(LED_PIN_R,1);
-            vTaskDelay(pdMS_TO_TICKS(delay));
-            gpio_put(LED_PIN_R,0);
-        }
-        else{
-            gpio_put(LED_PIN_R,0);
-        }
     }
+
 }
 
-
-void led_2_task(void *p){
+void led_y_task(void * p ){
     gpio_init(LED_PIN_Y);
     gpio_set_dir(LED_PIN_Y, GPIO_OUT);
 
-    int counter;
-    int delay = 100;
-
     while(true){
-        if(xQueueReceive(xQueueBtn_y, &counter, 100)){
-            printf("counter led amarelo : %d\n", counter);
-        }
-        
-        if (counter%2!=0){
+
+        if(xSemaphoreTake(xSemaphoreLedY, 100) == pdTRUE){
+
             gpio_put(LED_PIN_Y,1);
-            vTaskDelay(pdMS_TO_TICKS(delay));
+            vTaskDelay(pdMS_TO_TICKS(100));
             gpio_put(LED_PIN_Y,0);
-        }
-        else{
-            gpio_put(LED_PIN_Y,0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+        
         }
     }
+    
 }
+
+
+// em resumo: A queue vai mandar a diversificacao para sabermos se estamos tratando do botao Y ou R
+// A partir disso, vamos fazer a intermediacao para mandar ou para o botao Y ou R
+// Com isso definido, o controle efetivo vai ocorrer na ley tyask.
 
 
 int main() {
     stdio_init_all();
 
-    xQueueBtn = xQueueCreate(32, sizeof(int));
-    xQueueBtn_y = xQueueCreate(32, sizeof(int));
-
     xSemaphoreLedR = xSemaphoreCreateBinary();
     xSemaphoreLedY = xSemaphoreCreateBinary();
 
-    xTaskCreate(btn_1_task, "BTN_Task 1", 256, NULL, 1, NULL); // vai controlar o timer do botao 1
-    xTaskCreate(led_1_task, "LED TASK 1", 256, NULL, 1, NULL); // vai aplicar o timer do led 1
-    xTaskCreate(btn_2_task, "BTN_2_TASK", 256, NULL, 1, NULL); // vai controlar o timer do botao 2
-    xTaskCreate(led_2_task, "LED_2_TASK", 256, NULL, 1, NULL); // vai aplicar o timer do led 2
+    xQueueBtn = xQueueCreate(32, sizeof(int));
 
+    xTaskCreate(btn_task, "BTN_Task 1", 256, NULL, 1, NULL);
+    xTaskCreate(led_y_task, "LED_Task 1", 256, NULL, 1, NULL);
+    xTaskCreate(led_r_task, "LED_Task 2", 256, NULL, 1, NULL);
 
     vTaskStartScheduler();
 

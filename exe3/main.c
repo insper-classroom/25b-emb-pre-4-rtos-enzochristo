@@ -49,6 +49,12 @@ void led_2_task(void *p){
             // se nao ele vai atualizar todas as vezes que a lista mudar, e se ela esta sendo atualizada constantemente,
             // ele so roda uma vez.
             printf("delay btn2: %d",delay);
+
+            /*
+                xQueueReceive(xQueueBnt2, &delay, ...) -> Você passa &delay, 
+                que significa: "FreeRTOS, se houver um item na fila, por favor,
+                pegue o valor dele e copie para o endereço de memória da minha variável local delay".
+            */
         }
 
         if (delay > 0){
@@ -87,6 +93,18 @@ void btn_2_task(void *p){
             }
             printf("delay btn2 : %d", delay);
             xQueueSend(xQueueBnt2, &delay, 0);
+
+            // A fila nao funciona como uma lista.
+            // usamos a queue apenas para copiar o que tem no endereco da nossa variavel e colocar na queue
+            // mas ela faz isso de maneira sequencial.
+
+           /*
+           O que deveria ser: xQueueSend(xQueueBnt2, &delay, ...) -> Você passa &delay, que significa: 
+           "FreeRTOS, por favor, vá no endereço de memória da minha variável delay,
+            leia o valor que está lá, e coloque uma cópia desse valor na fila".
+           */
+
+
         }
     }
     
